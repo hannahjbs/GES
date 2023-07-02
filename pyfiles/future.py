@@ -23,12 +23,12 @@ bioCH4ppb = bioCH4 * 1e12/ 16 *  1e9/AM
 ppmtoMol = 1.77e+14 #mult by this for CO2 PPM -> Moles
 
 
-
+#define relationship between CH4(m) and NO/NO2(n), according to IPCC formulas
 def fmn(m, n):
   result = 0.47 * np.log(1 + (2.01e-5 * ((m * n)**0.75)) + (5.31e-15 * m * ((m * n)**1.52)))
   return result
 
-
+#define radiative forcing from SOx (most major aerosol): indirect (cloud formation) and direct (reflecting solar radiation)
 def deltaN_SOx(SOx):
     # val = 53.8412
     val = 56.2878
@@ -36,15 +36,17 @@ def deltaN_SOx(SOx):
     indirect = (-0.8 * 3.154e+07) * np.log((42 + SOx)/42) * (np.log ((42 + val)/42))**-1
     return (direct + indirect)
 
-
+#define Net Primary Production (NPP) changes of biota as a result of increases in carbon
 def NPP(carbon): #note in ppm 
 	result = (npp_0 * 1e15 / 12) * (1 + beta_biota * ( np.log ( carbon /  params.ppmCO2_1750 )))
 	return result
-
+	
+#define heterotrophic respiration (RH) from soil: emissions from carbon in soil (CS) depending on a running avg of GAT
 def RH_soil(CS, avg_T):
 	result = CS * frs * (q10 ** (avg_T/10))
 	return result
-	
+
+#define heterotrophic respiration (RH) from detritus: emissions from carbon in detritus layer (CD) depending on a running avg of GAT
 def RH_det(CD, avg_T):
 	result = CD * frd * (q10 ** (avg_T/10))
 	return result
@@ -56,6 +58,8 @@ class scenario:
 	Creates a class that returns various emission scenarios
 	
 	'''
+	#baseline CH4 default as 142Mt/year- lowest stable methane emissions reached in RCP 2.6
+	#can be redefined for other RCPs
 	def __init__(self, tspan, state, temp_array, RCP, custom_ch4 = False, reduction = .9, baseline = 142.0527):
 		self.__tspan = tspan
 		self.__state = state
@@ -92,7 +96,7 @@ class scenario:
 		# Sulf oxide emissions
 		self.__emitSOx = np.zeros(10000)
 		self.__emitSOx[self.__RCP_emit_df.Year] = self.__RCP_emit_df.SOx 
-
+		#tracking acidification
 		self.__H_track = np.zeros(10000)
 		self.__H_trackPF = np.zeros(10000)
 		
@@ -143,11 +147,12 @@ class scenario:
 	    return self.get_temp_track()[2100]
 	def getTemp2050(self):
 	    return self.get_temp_track()[2050]
-	    
+
+	#define PF extent
 	def __PF_extent(self, time):
 		extent = (1- beta * ( self.__temp_track[time] - self.__temp_track[2010] ))
 		return extent
-	
+	#as extent decreases, "new" carbon vulnerable
 	def __frozen(self, time):
 	    cnew = Cpf_moles * self.__PF_extent(time)
 	    return cnew
@@ -167,7 +172,7 @@ class scenario:
 		return sol
 		
 		
-		
+	#define ocean dynamics using BEAM model
 	def __BEAMfuture(self, t, y, emissionsC, LUC,  emissionsM, emissionsN, emissionsSOx):
 
 	  tMix, tDeep, QA, QU, QL, CV, CD, CS, ch4, n2o= y 
@@ -184,7 +189,7 @@ class scenario:
 	  #Also track H
 	  self.__H_track[t_yr] = H
 
-	  #And now our Lambda factor:
+	  #Lambda factor:
 	  Lambda = 1 + K_1/H + K_1*K_2/H**2;  
 
 	  currentppm = QA / ppmtoMol
@@ -192,6 +197,7 @@ class scenario:
 	  m = ch4 #ppb
 	  n = n2o #ppb 
 
+	  # radiative forcings
 	  cERF = k * np.log(currentppm / init_ppm) * 3.154e+07 # J/yr conversion
 	  mERF = ((alpha_ch4 * (m**.5 - m0**.5)) - (fmn(m,n0) - fmn(m0,n0)) ) * 3.154e+07
 	  nERF = ( (alpha_ch4 * (n**.5 - n0**.5)) - (fmn(m0,n) - fmn(m0,n0)) ) * 3.154e+07 
@@ -224,7 +230,7 @@ class scenario:
 	  return dydt
 		
 		
-	
+	#ocean dynamics, accounting for PF changes
 	def __BEAMfuturePF(self, t, y, emissionsC, LUC, emissionsM, emissionsN, emissionsSOx):
 	  tMix, tDeep, QA, QU, QL,  CV, CD, CS, ch4, n2o,  Cpf, Lc, Lm= y 
 	  
@@ -248,10 +254,10 @@ class scenario:
 	  m = ch4 #ppb
 	  n = n2o #ppb 
 
+	  # radiative forcings
 	  cERF = k * np.log(currentppm / init_ppm) * 3.154e+07 # J/yr conversion
 	  mERF = ((alpha_ch4 * (m**.5 - m0**.5)) - (fmn(m,n0) - fmn(m0,n0)) ) * 3.154e+07
 	  nERF = ( (alpha_ch4 * (n**.5 - n0**.5)) - (fmn(m0,n) - fmn(m0,n0)) ) * 3.154e+07 
-	  
 	  sERF = deltaN_SOx(emissionsSOx[t_yr]) * params.riley_param
 	  deltaN = cERF + mERF + nERF + sERF; 
 	  
@@ -262,7 +268,7 @@ class scenario:
 	  emit_n20 = emissionsN[t_yr] #note these are in ppb
 	  
 	  #permafrost stuff
-	  # shoudl be negative 
+	  # should always be negative 
 	  B = (self.__frozen(t_yr) - Cpf )
 	  if B > 0:
 	      B = 0
