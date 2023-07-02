@@ -1,5 +1,5 @@
 '''
-Note that the purpose of this file is to calculate historical emissions with respect to temperature.
+Note that the purpose of this file is to calculate historical emissions with respect to temperature, and provide initial conditions for model start.
 
 This file uses ppm data as a driver for the amount of carbon in the atmosphere
 '''
@@ -28,7 +28,7 @@ H_track = np.zeros(10000)
 temp_track = np.zeros(10000)
 
 
-# drive with CO2 means that we will use projected ppm data
+# drive with CO2 means that we will use projected ppm data (atmos. concentration projections, not emissions data)
 def BEAM(t,y, drive_CO2 = True):
 	tMix, tDeep, QA, QU, QL, CV, CD, CS = y 
 	t_yr = int(np.floor(t))
@@ -53,7 +53,7 @@ def BEAM(t,y, drive_CO2 = True):
 	if t_yr == 2000:
 		pf_init_T =  tMix
 
-  #And now our Lambda factor:
+  #Lambda factor:
 	Lambda = 1 + K_1/H + K_1*K_2/H**2;  
 
   
@@ -142,7 +142,7 @@ def solve_past(tspan, inits, ppm_data, carbon_df, bool):
 		
 	
 	'''
-	Carbon ppm levels This what drives the code
+	Carbon ppm levels: This what drives the code
 	'''
 
 	#Imposed atmospheric CO2: Convert from ppm to moles 
